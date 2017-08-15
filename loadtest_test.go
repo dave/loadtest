@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"testing"
 
+	"context"
+
 	"github.com/dave/loadtest"
 )
 
 func TestStart(t *testing.T) {
 	b := &bytes.Buffer{}
+	ctx := context.Background()
 	tester := loadtest.Tester{
 		Rate: 10,
 		Database: mockDatabase{
@@ -17,7 +20,7 @@ func TestStart(t *testing.T) {
 		},
 		Log: b,
 	}
-	tester.Start()
+	tester.Start(ctx)
 	if b.String() != "Starting...\n" {
 		t.Fatal("Failed starting")
 	}
