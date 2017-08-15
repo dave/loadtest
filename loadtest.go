@@ -39,7 +39,13 @@ func (t Tester) Start(ctx context.Context) {
 
 	// We have to display the status in a few places, so make it a function
 	status := func() {
-		fmt.Fprintf(t.Log, "Started: %d, finished: %d, errors: %d\n", startedCount, finishedCount, errorCount)
+		fmt.Fprintf(
+			t.Log,
+			"Started: %d, finished: %d, errors: %d\n",
+			atomic.LoadUint64(&startedCount),
+			atomic.LoadUint64(&finishedCount),
+			atomic.LoadUint64(&errorCount),
+		)
 	}
 
 	// Let's print the status every second
@@ -81,8 +87,8 @@ func (t Tester) Start(ctx context.Context) {
 				// We send the payload to the database
 				t.Database.Send(ctx, "foo", finished)
 
-				// We increment the started counter (no need for atomic here), and add to the waitgroup
-				startedCount++
+				// We increment the started counter, and add to the waitgroup
+				atomic.AddUint64(&startedCount, 1)
 				wg.Add(1)
 
 				// We wait for the database to finish, increment the counters and waitgroup
