@@ -28,7 +28,9 @@ func (t Tester) Start(ctx context.Context) {
 	go func() {
 		select {
 		case <-time.After(time.Second * 100):
+			fmt.Fprintln(t.Log, "Finished...")
 		case <-ctx.Done():
+			fmt.Fprintln(t.Log, "Cancelled...")
 		}
 		wg.Done()
 	}()
