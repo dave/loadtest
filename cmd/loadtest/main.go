@@ -7,5 +7,10 @@ import (
 )
 
 func main() {
-	loadtest.Start(os.Stdout)
+	tester := loadtest.Tester{
+		Rate:     10,
+		Database: loadtest.InfluxDbDatabase{},
+		Log:      os.Stdout,
+	}
+	tester.Start()
 }
