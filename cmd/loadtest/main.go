@@ -8,6 +8,7 @@ import (
 	"os/signal"
 
 	"github.com/dave/loadtest"
+	"github.com/dave/loadtest/mockdb"
 )
 
 func main() {
@@ -34,9 +35,17 @@ func main() {
 	}()
 
 	tester := loadtest.Tester{
-		Rate:     10,
-		Database: loadtest.InfluxDbDatabase{},
-		Log:      os.Stdout,
+		Rate: 1000,
+		//Database: loadtest.InfluxDbDatabase{},
+		Database: mockdb.MockDatabase{
+			MinResponseTime: 250,
+			MaxResponseTime: 500,
+			ErrorPercentage: 5,
+		},
+		Log:    os.Stdout,
+		Number: 10000,
+		Cancel: cancel,
 	}
 	tester.Start(ctx)
+
 }

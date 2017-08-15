@@ -8,20 +8,24 @@ import (
 
 	"sync"
 
+	"strings"
+
 	"github.com/dave/loadtest"
+	"github.com/dave/loadtest/mockdb"
 )
 
 func TestStart(t *testing.T) {
 	b := &bytes.Buffer{}
 	ctx := context.Background()
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, _ = context.WithCancel(ctx)
 	tester := loadtest.Tester{
-		Rate: 10,
-		Database: mockDatabase{
-			minResponseTime: 10,
-			maxResponseTime: 20,
+		Rate: 1000,
+		Database: mockdb.MockDatabase{
+			MinResponseTime: 10,
+			MaxResponseTime: 20,
 		},
-		Log: b,
+		Log:    b,
+		Number: 10,
 	}
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
@@ -29,25 +33,34 @@ func TestStart(t *testing.T) {
 		tester.Start(ctx)
 		wg.Done()
 	}()
-	cancel()
 	wg.Wait()
-	if b.String() != "Starting...\nCancelled...\n" {
-		t.Fatalf("Failed starting, got %#v", b.String())
+	if !strings.Contains(b.String(), "Started: 10, finished: 10, errors: 0\nFinished...") {
+		t.Fatalf("Failed, got %#v", b.String())
 	}
 }
 
-func TestStop(t *testing.T) {
+func TestStart_cancel(t *testing.T) {
 	b := &bytes.Buffer{}
+	ctx := context.Background()
+	ctx, cancel := context.WithCancel(ctx)
 	tester := loadtest.Tester{
-		Rate: 10,
-		Database: mockDatabase{
-			minResponseTime: 10,
-			maxResponseTime: 20,
+		Rate: 1000,
+		Database: mockdb.MockDatabase{
+			MinResponseTime: 10,
+			MaxResponseTime: 20,
 		},
 		Log: b,
+		Cancel: cancel,
 	}
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		tester.Start(ctx)
+		wg.Done()
+	}()
 	tester.Stop()
-	if b.String() != "Stopping...\n" {
-		t.Fatal("Failed stopping")
+	wg.Wait()
+	if !strings.Contains(b.String(), "Done...") {
+		t.Fatalf("Failed, got %#v", b.String())
 	}
 }
