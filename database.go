@@ -17,4 +17,5 @@ type InfluxDbDatabase struct {
 // Send sends the datapoint to the mock database, and returns via the finished channel
 func (i InfluxDbDatabase) Send(ctx context.Context, datapoint interface{}, finished chan error) {
 	finished <- nil // TODO
+	close(finished)
 }

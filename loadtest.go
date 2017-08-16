@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -23,13 +24,17 @@ type Tester struct {
 	Cancel context.CancelFunc
 }
 
+func (t *Tester) SetRate(rate int) {
+	t.Rate = rate
+	fmt.Fprintf(t.Log, "Setting rate to %d\n", rate)
+}
+
 // Start starts the load testing run
 func (t Tester) Start(ctx context.Context) {
 
 	fmt.Fprintln(t.Log, "Starting...")
 
 	// We can use these channels to exit with an error, or exit gracefully
-	fail := make(chan error)
 	done := make(chan struct{})
 
 	// Some counters so we can show a nice status. Remember, increment these with atomic.AddUint64 if concurrent
@@ -50,12 +55,14 @@ func (t Tester) Start(ctx context.Context) {
 
 	// Let's print the status every second
 	go func() {
+		ticker := time.NewTicker(time.Second)
 		for {
 			status()
 			select {
-			case <-time.After(time.Second):
+			case <-ticker.C:
 				continue
 			case <-ctx.Done():
+				ticker.Stop()
 				return
 			}
 		}
@@ -64,13 +71,16 @@ func (t Tester) Start(ctx context.Context) {
 	// Here we start a goroutine to send the messages
 	go func() {
 
+		defer close(done)
+
 		// The count of sent messages
 		var count int
 
 		// Create a waitgroup so we can wait for outstanding messages to finish sending
 		wg := &sync.WaitGroup{}
 
-		ticker := time.NewTicker(time.Second / time.Duration(t.Rate)).C
+		ticker := time.NewTicker(time.Second / time.Duration(t.Rate))
+		defer ticker.Stop()
 
 		for {
 			// Loop around until we have sent all messages (or forever if t.Number == 0)
@@ -80,7 +90,8 @@ func (t Tester) Start(ctx context.Context) {
 			count++
 
 			select {
-			case <-ticker:
+			case <-ticker.C:
+
 				// The database will signal on this channel when it's done processing the message
 				finished := make(chan error)
 
@@ -93,41 +104,55 @@ func (t Tester) Start(ctx context.Context) {
 
 				// We wait for the database to finish, increment the counters and waitgroup
 				go func() {
+					defer wg.Done()
 					select {
 					case err := <-finished:
 						atomic.AddUint64(&finishedCount, 1)
 						if err != nil {
 							atomic.AddUint64(&errorCount, 1)
 						}
-						wg.Done()
 					case <-ctx.Done():
+						return
 					}
 				}()
+
 			case <-ctx.Done():
+				return
 			}
 		}
 
-		// wait for all to finish...
 		wg.Wait()
-
-		// signal that the run has finished
-		done <- struct{}{}
 	}()
 
 	select {
-	case err := <-fail:
-		fmt.Fprintf(t.Log, "Error %s\n", err)
 	case <-done:
 		status()
 		fmt.Fprintln(t.Log, "Finished...")
 	case <-ctx.Done():
-		status()
 		fmt.Fprintln(t.Log, "Done...")
 	}
 }
 
 // Start stops the load testing run
 func (t Tester) Stop() {
+	if t.Cancel == nil {
+		// if not started
+		return
+	}
 	fmt.Fprintln(t.Log, "Stopping...")
 	t.Cancel()
+}
+
+const DEBUG = false
+
+func init() {
+	if DEBUG {
+		go func() {
+			// debug to see if goroutines aren't being closed...
+			ticker := time.NewTicker(time.Millisecond * 200)
+			for range ticker.C {
+				fmt.Println("runtime.NumGoroutine(): ", runtime.NumGoroutine())
+			}
+		}()
+	}
 }

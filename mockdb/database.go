@@ -17,13 +17,18 @@ type MockDatabase struct {
 // Send sends the datapoint to the mock database, and returns via the finished channel
 func (m MockDatabase) Send(ctx context.Context, datapoint interface{}, finished chan error) {
 	go func() {
+		defer close(finished)
 		// Note use of rand.Intn without rand.Seed() ... better for testing?
-		ms := m.MinResponseTime + rand.Intn(m.MaxResponseTime)
-		<-time.After(time.Millisecond * time.Duration(ms))
-		if rand.Intn(100) < m.ErrorPercentage {
-			finished <- errors.New("mock error")
+		ms := m.MinResponseTime + rand.Intn(m.MaxResponseTime-m.MinResponseTime)
+		select {
+		case <-time.After(time.Millisecond * time.Duration(ms)):
+			if rand.Intn(100) < m.ErrorPercentage {
+				finished <- errors.New("mock error")
+				return
+			}
+			finished <- nil
+		case <-ctx.Done():
 			return
 		}
-		finished <- nil
 	}()
 }
