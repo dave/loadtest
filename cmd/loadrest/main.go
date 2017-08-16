@@ -10,11 +10,19 @@ import (
 
 	"strconv"
 
+	"flag"
+
+	"fmt"
+
 	"github.com/dave/loadtest"
 	"github.com/dave/loadtest/mockdb"
 )
 
 func main() {
+
+	port := flag.Int("port", 8080, "port to serve on")
+
+	flag.Parse()
 
 	// Ensure we stop before we start again
 	var starter sync.Once
@@ -64,6 +72,6 @@ func main() {
 		starter = sync.Once{}
 	})
 
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", *port), nil))
 
 }
